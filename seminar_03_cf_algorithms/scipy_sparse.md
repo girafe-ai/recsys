@@ -3,7 +3,7 @@
 There are two formats in `scipy`: **CSR** (Compressed Sparse Row) and **CSC** (Compressed Sparse Row).
 Let's look at this using the example of the following matrix:
 $$
-A = \begin{pmatrix}
+\begin{pmatrix}
 0 & 0 & 1 \\
 4 & 0 & 0 \\
 0 & 0 & 3
