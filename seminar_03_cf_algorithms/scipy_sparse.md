@@ -2,6 +2,7 @@
 
 There are two formats in `scipy`: **CSR** (Compressed Sparse Row) and **CSC** (Compressed Sparse Row).
 Let's look at this using the example of the following matrix:
+
 $$
 \begin{pmatrix}
 0 & 0 & 1 \\
