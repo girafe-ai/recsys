@@ -2,6 +2,12 @@ import pandas as pd
 import numpy as np
 
 
+def _as_numpy(values):
+    if hasattr(values, "to_numpy"):
+        return values.to_numpy()
+    return np.asarray(values)
+
+
 def dcg_score(y_true, y_score, k=10, gains="linear"):
     """Discounted cumulative gain (DCG) at rank k
     Parameters
@@ -18,6 +24,9 @@ def dcg_score(y_true, y_score, k=10, gains="linear"):
     -------
     DCG @k : float
     """
+    y_true = _as_numpy(y_true)
+    y_score = _as_numpy(y_score)
+
     order = np.argsort(y_score)[::-1]
     y_true = np.take(y_true, order[:k])
 
@@ -64,7 +73,10 @@ def calculate_grouped_ndcg_with_embeddings(valDf, model, k):
     nonnull_users = set(data[data.rating > 0].user_id)
     data = data[data.user_id.isin(nonnull_users)]
     
-    return np.mean(data.groupby("user_id").apply(lambda x: ndcg_score(x.rating, x.predicted_rating, k)))
+    grouped_ndcg = data.groupby("user_id").apply(
+        lambda x: ndcg_score(x.rating.to_numpy(), x.predicted_rating.to_numpy(), k)
+    )
+    return grouped_ndcg.to_numpy().mean()
 
 def calculate_grouped_ndcg_random(trainDf, valDf, k, i):
     data = valDf.copy()
@@ -78,7 +90,14 @@ def calculate_grouped_ndcg_random(trainDf, valDf, k, i):
     data = data[data.user_id.isin(nonnull_users)]
 
     np.random.seed(i)
-    return np.mean(data.groupby("user_id").apply(lambda x: ndcg_score(x.rating, np.random.permutation(x.predicted_rating), k)))
+    grouped_ndcg = data.groupby("user_id").apply(
+        lambda x: ndcg_score(
+            x.rating.to_numpy(),
+            np.random.permutation(x.predicted_rating.to_numpy()),
+            k,
+        )
+    )
+    return grouped_ndcg.to_numpy().mean()
 
 def calculate_grouped_ndcg_sum_popularity(trainDf, valDf, k):
     data = valDf.copy()
@@ -91,7 +110,10 @@ def calculate_grouped_ndcg_sum_popularity(trainDf, valDf, k):
     nonnull_users = set(data[data.rating > 0].user_id)
     data = data[data.user_id.isin(nonnull_users)]
 
-    return np.mean(data.groupby("user_id").apply(lambda x: ndcg_score(x.rating, x.predicted_rating, k)))
+    grouped_ndcg = data.groupby("user_id").apply(
+        lambda x: ndcg_score(x.rating.to_numpy(), x.predicted_rating.to_numpy(), k)
+    )
+    return grouped_ndcg.to_numpy().mean()
 
 def calculate_grouped_ndcg_for_bert4rec_output(valDf, model_scores, k):
     data = valDf.copy()
@@ -101,4 +123,7 @@ def calculate_grouped_ndcg_for_bert4rec_output(valDf, model_scores, k):
     nonnull_users = set(data[data.rating > 0].user_id)
     data = data[data.user_id.isin(nonnull_users)]
     
-    return np.mean(data.groupby("user_id").apply(lambda x: ndcg_score(x.rating, x.predicted_rating, k)))
+    grouped_ndcg = data.groupby("user_id").apply(
+        lambda x: ndcg_score(x.rating.to_numpy(), x.predicted_rating.to_numpy(), k)
+    )
+    return grouped_ndcg.to_numpy().mean()
