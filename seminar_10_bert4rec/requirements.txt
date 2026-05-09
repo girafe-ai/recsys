@@ -1,0 +1,8 @@
+wget
+tqdm
+numpy
+torch
+tb-nightly
+pandas
+scipy
+future
