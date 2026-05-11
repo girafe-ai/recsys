@@ -71,13 +71,22 @@ def export_experiments_config_as_json(args, experiment_path):
 def fix_random_seed_as(random_seed):
     random.seed(random_seed)
     torch.manual_seed(random_seed)
-    torch.cuda.manual_seed_all(random_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(random_seed)
     np.random.seed(random_seed)
     cudnn.deterministic = True
     cudnn.benchmark = False
 
 
 def set_up_gpu(args):
+    if args.device == 'cuda' and not torch.cuda.is_available():
+        print('CUDA was requested but is not available. Falling back to CPU.')
+        args.device = 'cpu'
+
+    if args.device == 'cpu':
+        args.num_gpu = 0
+        return
+
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device_idx
     args.num_gpu = len(args.device_idx.split(","))
 
