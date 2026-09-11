@@ -1,0 +1,13 @@
+.claude/
+seminar_10_bert4rec/
+seminar_11_i2i_service/
+
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+data/
+datasets/
+prepared/
+experiments/
+catboost_info/
