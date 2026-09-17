@@ -1,6 +1,8 @@
 .claude/
 seminar_10_bert4rec/
 seminar_11_i2i_service/
+seminars/02_ranking/data/
+seminars/02_ranking/mlruns/
 
 __pycache__/
 *.py[cod]

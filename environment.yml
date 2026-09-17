@@ -1,0 +1,20 @@
+name: recsys
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - jupyterlab
+  - ipywidgets
+  - numpy
+  - scipy
+  - polars
+  - implicit
+  - h5py
+  - lightgbm
+  - catboost
+  - scikit-learn
+  - matplotlib
+  - shap
+  - mlflow
+  - tqdm
