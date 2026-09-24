@@ -7,6 +7,7 @@ dependencies:
   - jupyterlab
   - ipywidgets
   - numpy
+  - pandas
   - scipy
   - polars
   - implicit
