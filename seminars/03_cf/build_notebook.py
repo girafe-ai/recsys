@@ -27,7 +27,7 @@ add(
     r"""
     # Seminar 03: Collaborative filtering
 
-    This seminar adapts the item-to-item and user-to-user examples from the `25s_msai` course branch. We will build recommendations from user ratings alone, compare two neighborhood models with a simple baseline, and discuss when the comparison is reliable.
+    We will build recommendations from user ratings alone, compare two neighborhood models with a simple baseline, and discuss when the comparison is reliable.
 
     **Learning goals:** distinguish item-based from user-based CF; understand centering, overlap and shrinkage; avoid evaluation leakage; interpret RMSE/MAE; inspect movie and user neighbors; compare both approaches with open-source implementations. All tabular work uses Polars.
     """,
@@ -181,7 +181,7 @@ add(
     r"""
     ## 2. User-to-user and item-to-item: building neighborhoods
 
-    The [Yandex ML Handbook introduction](https://education.yandex.ru/handbook/ml/article/intro-recsys) presents two symmetric collaborative-filtering ideas. We use only the rating matrix, not movie genres or descriptions.
+    We use only the rating matrix, not movie genres or descriptions.
 
     **User-to-user.** Each matrix row is a user's history. We find people who rate the same movies similarly, then predict a new rating from those neighbors' ratings after adjusting for each neighbor's typical rating level. A generous rater who gives everything five stars does not automatically dominate.
 
@@ -339,7 +339,7 @@ add(
 add(
     "markdown",
     r"""
-    The old seminar also used the number of **co-rating users** as an "intersection similarity." It is a useful support count, but not a normalized similarity: two very popular movies can have a large intersection even when their relative ratings disagree. Compare the top neighbors by the two criteria below.
+    The number of **co-rating users** is a useful measure of support, but not a normalized similarity: two very popular movies can have a large intersection even when their relative ratings disagree. Compare the top neighbors by overlap count and adjusted cosine below.
     """,
 )
 
