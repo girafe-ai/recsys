@@ -8,6 +8,7 @@ dependencies:
   - ipywidgets
   - numpy
   - pandas
+  - scikit-surprise=1.1.5
   - scipy
   - polars
   - implicit

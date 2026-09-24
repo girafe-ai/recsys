@@ -29,7 +29,7 @@ add(
 
     This seminar adapts the item-to-item and user-to-user examples from the `25s_msai` course branch. We will build recommendations from user ratings alone, compare two neighborhood models with a simple baseline, and discuss when the comparison is reliable.
 
-    **Learning goals:** distinguish item-based from user-based CF; understand centering, overlap and shrinkage; avoid evaluation leakage; interpret RMSE/MAE and inspect recommendations.
+    **Learning goals:** distinguish item-based from user-based CF; understand centering, overlap and shrinkage; avoid evaluation leakage; interpret RMSE/MAE; inspect movie and user neighbors; compare our user CF with an open-source implementation.
     """,
 )
 
@@ -49,7 +49,7 @@ add(
 
     if IN_COLAB:
         subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-q", "numpy", "pandas", "scipy", "matplotlib"],
+            [sys.executable, "-m", "pip", "install", "-q", "numpy", "pandas", "scipy", "matplotlib", "scikit-surprise==1.1.5"],
             check=True,
         )
 
@@ -72,7 +72,7 @@ add(
             NOTEBOOK_DIR = Path.cwd() / "seminars" / "03_cf"
         DATA_DIR = NOTEBOOK_DIR / "data"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Data cache: {DATA_DIR}")
+    print("Data cache is ready.")
     """,
 )
 
@@ -144,13 +144,53 @@ add(
 add(
     "markdown",
     r"""
-    ## 2. What the neighborhoods measure
+    ### EDA: насколько разрежены оценки и где находится длинный хвост?
 
-    **Item-to-item:** two movies are similar when users tend to rate them above or below their *own* average in the same way. We use adjusted cosine similarity on user-centered ratings. **User-to-user:** two users are similar when their centered rating patterns align. This is cosine on centered vectors, which is **not exactly Pearson correlation computed only on co-rated items**.
+    У соседских методов есть важная предпосылка: для двух пользователей или двух фильмов должно найтись достаточно общих оценок. Проверим плотность матрицы и долю оценок, приходящуюся на самые популярные фильмы. Эти числа сразу объясняют, почему `min_common` и способ обработки редких объектов важны.
+    """,
+)
 
-    $s(a,b)=\frac{\sum_{u\in I_a\cap I_b}x_{ua}x_{ub}}{\sqrt{\sum_{u\in I_a}x_{ua}^2}\sqrt{\sum_{u\in I_b}x_{ub}^2}}\cdot\frac{n_{ab}}{n_{ab}+\lambda}$
+add(
+    "code",
+    r"""
+    movie_counts = ratings.groupby("item_id").size().sort_values(ascending=False)
+    density = len(ratings) / (ratings.user_id.nunique() * ratings.item_id.nunique())
+    top_tenth = max(1, int(np.ceil(0.1 * len(movie_counts))))
+    top_tenth_share = movie_counts.iloc[:top_tenth].sum() / len(ratings)
+    cumulative_share = movie_counts.cumsum().to_numpy() / movie_counts.sum()
+    catalog_share = np.arange(1, len(movie_counts) + 1) / len(movie_counts)
 
-    Here $x_{ui}=r_{ui}-\bar r_u$ on observed ratings, $n_{ab}$ is the number of shared observations, and $\lambda$ shrinks similarities supported by few users. We set similarities with fewer than three shared observations to zero. Negative similarity is valid mathematically, but this simple recommender uses only **positive** neighbors; it never treats a missing pair as a negative similarity.
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.5), layout="constrained")
+    axes[0].plot(np.arange(1, len(movie_counts) + 1), movie_counts.to_numpy(), color="#278f88")
+    axes[0].set(yscale="log", xlabel="Movie popularity rank", ylabel="Number of ratings (log)", title="Long tail of movies")
+    axes[1].plot(catalog_share, cumulative_share, color="#278f88", label="MovieLens 100K")
+    axes[1].plot([0, 1], [0, 1], color="gray", linestyle="--", label="Even distribution")
+    axes[1].set(xlabel="Fraction of most popular movies", ylabel="Fraction of all ratings", title="Where ratings concentrate")
+    axes[1].legend()
+    plt.show()
+    print(f"Observed matrix density: {density:.1%} (missing values are unknown)")
+    print(f"Top 10% of movies receive {top_tenth_share:.1%} of all ratings")
+    """,
+)
+
+add(
+    "markdown",
+    r"""
+    ## 2. User-to-user и item-to-item: как строятся соседи
+
+    [Вводная глава Яндекс Хендбука](https://education.yandex.ru/handbook/ml/article/intro-recsys) показывает две симметричные идеи коллаборативной фильтрации. Мы используем только матрицу оценок, без жанров и описаний фильмов.
+
+    **User-to-user.** Строка матрицы — история пользователя. Для целевого пользователя находим других людей со схожими оценками общих фильмов. Чтобы предсказать оценку нового фильма, берём оценки этого фильма у соседей и поправляем их на личную среднюю оценку каждого соседа. Так пользователь, который всем фильмам ставит 5, не становится автоматически «щедрым» голосом для любого другого пользователя.
+
+    **Item-to-item.** Столбец матрицы — оценки фильма разными людьми. Для нового фильма ищем похожие фильмы, уже оценённые целевым пользователем, и агрегируем отклонения этих оценок от его среднего. Сходство в этом подходе поведенческое: два фильма могут быть соседями, потому что их одинаково оценивает аудитория, даже если жанры различаются.
+
+    В нашей реализации $x_{ui}=r_{ui}-\bar r_u$ для известных оценок и ноль для отсутствующих. Cosine similarity между строками $x_u$ даёт user-to-user, между столбцами — adjusted cosine для item-to-item:
+
+    $$s(a,b)=\frac{x_a\cdot x_b}{\lVert x_a\rVert\lVert x_b\rVert}\cdot\frac{n_{ab}}{n_{ab}+\lambda}.$$
+
+    $n_{ab}$ — число общих оценок, $\lambda$ ослабляет сходство по малому числу наблюдений. Мы обнуляем сходство при менее чем трёх общих оценках и используем для прогноза только положительных соседей. Это **cosine по центрированным векторам**; Pearson, посчитанный только на пересечении, может дать другое значение. Отсутствующая оценка остаётся неизвестной, а не отрицательной.
+
+    **Когда методы затрудняются:** мало общих оценок, новый пользователь/фильм, сильный перекос популярности. На большом каталоге полные матрицы сходства, которые мы строим для наглядности, также становятся дорогими по памяти.
     """,
 )
 
@@ -269,13 +309,25 @@ add(
             "item_id": item_ids[neighbors],
             "similarity": item_similarity[item_idx, neighbors],
             "shared_users": item_overlap[item_idx, neighbors].astype(int),
+            "train_ratings": np.asarray(observed.sum(axis=0)).ravel()[neighbors].astype(int),
         })
-        return result.merge(movies, on="item_id", how="left")
+        return result.merge(movies, on="item_id", how="left")[[
+            "title", "item_id", "similarity", "shared_users", "train_ratings"
+        ]]
 
 
-    example_movie = int(train.groupby("item_id").size().idxmax())
-    print("Neighbors of:", movies.loc[movies.item_id == example_movie, "title"].iloc[0])
-    display(nearest_items(example_movie))
+    # Choose three recognizable films. Try another MovieLens item_id here.
+    for example_movie in (50, 1, 483):  # Star Wars, Toy Story, Casablanca
+        title = movies.loc[movies.item_id == example_movie, "title"].iloc[0]
+        print(f"\nClosest movies to {title} (ID {example_movie}):")
+        display(nearest_items(example_movie, n=7).round({"similarity": 3}))
+    """,
+)
+
+add(
+    "markdown",
+    r"""
+    **Как читать соседей по названиям.** У *Star Wars* среди ближайших обычно видны *Return of the Jedi* и *The Empire Strikes Back* — понятная проверка здравого смысла. У *Casablanca* появляются классические фильмы вроде *Citizen Kane* и *The Maltese Falcon*. У *Toy Story* список более смешанный: модель узнаёт совпадения во вкусах аудитории, а не жанр или сюжет. Смотрите также `shared_users`: высокая похожесть по нескольким людям менее надёжна, чем по сотням.
     """,
 )
 
@@ -289,6 +341,7 @@ add(
 add(
     "code",
     r"""
+    example_movie = 50  # Star Wars, to compare the two neighbor definitions
     example_idx = int(np.searchsorted(item_ids, example_movie))
     by_overlap = np.argsort(item_overlap[example_idx])[::-1]
     by_overlap = by_overlap[by_overlap != example_idx][:5]
@@ -306,7 +359,12 @@ add(
     r"""
     ## 4. Predict ratings and compare methods
 
-    For item CF, the neighbor evidence for target movie $i$ comes from movies the target user has rated. For user CF, it comes from similar users who rated $i$. In both cases we add a weighted average of neighbor residuals to the target user's training mean. We use at most 40 positive neighbors, return the user mean when none are available, and clip predictions to the valid 1–5 range. The fallback is also our baseline.
+    For item CF, the neighbor evidence for target movie $i$ comes from movies the target user has rated. For user CF, it comes from similar users who rated $i$. The weighted prediction is:
+
+    $$\hat r_{ui}^{\text{item}}=\bar r_u+\frac{\sum_{j\in N_i(u)}s(i,j)(r_{uj}-\bar r_u)}{\sum_{j\in N_i(u)}s(i,j)},$$
+    $$\hat r_{ui}^{\text{user}}=\bar r_u+\frac{\sum_{v\in N_u(i)}s(u,v)(r_{vi}-\bar r_v)}{\sum_{v\in N_u(i)}s(u,v)}.$$
+
+    We use at most 40 positive neighbors, return the user mean when none are available, and clip predictions to the valid 1–5 range. The fallback is also our baseline.
 
     **RMSE** penalizes large rating errors more than **MAE**. Both evaluate explicit rating prediction; they do not tell us whether users would click an unseen recommendation. For that, we would need a ranking protocol with carefully defined candidates and relevance.
     """,
@@ -390,6 +448,162 @@ add(
 add(
     "markdown",
     r"""
+    ### Библиотечный user-to-user: Surprise
+
+    [Surprise `KNNWithMeans`](https://surprise.readthedocs.io/en/stable/knn_inspired.html) реализует предсказание через похожих пользователей и поправку на их средние оценки. Мы задаём `user_based=True`, `k=40`, [Pearson baseline со shrinkage](https://surprise.readthedocs.io/en/stable/similarities.html) и минимум три общих фильма. Обычный Pearson может оказаться равным 1 даже по трём совпавшим оценкам; shrinkage ослабляет такие выводы. Обучаем библиотеку на **том же `train`**, затем проверяем на **том же `test`** — сравнивать RMSE иначе было бы некорректно.
+
+    Результаты не обязаны совпадать с нашей реализацией: Surprise центрирует оценки относительно своих baseline-оценок и считает сходство по общим фильмам; наша модель использует cosine пользовательских отклонений и другую формулу shrinkage. По-разному устроен и fallback без достаточного числа соседей. Разница здесь — повод изучить определение сходства, а не признак ошибки сама по себе.
+    """,
+)
+
+add(
+    "code",
+    r"""
+    from surprise import Dataset, KNNWithMeans, Reader
+
+    # String IDs make the raw/inner ID distinction explicit in Surprise.
+    surprise_train = train[["user_id", "item_id", "rating"]].astype({
+        "user_id": str, "item_id": str
+    })
+    reader = Reader(rating_scale=(1, 5))
+    surprise_data = Dataset.load_from_df(surprise_train, reader)
+    surprise_trainset = surprise_data.build_full_trainset()
+    surprise_u2u = KNNWithMeans(
+        k=K_NEIGHBORS,
+        min_k=3,
+        sim_options={
+            "name": "pearson_baseline",
+            "user_based": True,
+            "min_support": 3,
+            "shrinkage": 20,
+        },
+        verbose=False,
+    )
+    surprise_u2u.fit(surprise_trainset)
+    surprise_testset = [
+        (str(user), str(item), float(rating))
+        for user, item, rating in test[["user_id", "item_id", "rating"]].itertuples(index=False, name=None)
+    ]
+    surprise_predictions = surprise_u2u.test(surprise_testset)
+    library_estimates = np.array([prediction.est for prediction in surprise_predictions])
+    library_support = np.array([
+        prediction.details.get("actual_k", 0) for prediction in surprise_predictions
+    ])
+    assert len(library_estimates) == len(truth)
+    assert np.isfinite(library_estimates).all()
+    library_error = library_estimates - truth
+    results.loc["Surprise user-to-user"] = {
+        "RMSE": np.sqrt(np.mean(library_error ** 2)),
+        "MAE": np.mean(np.abs(library_error)),
+        "neighbor_coverage": np.mean(library_support >= 3),
+    }
+    display(results.round(4))
+    """,
+)
+
+add(
+    "markdown",
+    r"""
+    У user-to-user сосед — другой человек, поэтому одного `user_id` недостаточно для интуитивной проверки. Ниже для нескольких ближайших соседей показаны похожесть, число совместно оценённых фильмов и фильмы, которым **оба** поставили не меньше четырёх звёзд. Это иллюстрация на одном пользователе, не объяснение всех рекомендаций модели.
+    """,
+)
+
+add(
+    "code",
+    r"""
+    example_user_id = 1
+    inner_user = surprise_trainset.to_inner_uid(str(example_user_id))
+    raw_neighbors = surprise_u2u.get_neighbors(inner_user, k=20)
+    positive_neighbors = [
+        neighbor for neighbor in raw_neighbors
+        if surprise_u2u.sim[inner_user, neighbor] > 0
+    ][:5]
+    title_by_id = movies.set_index("item_id")["title"].to_dict()
+    reference_ratings = train.loc[train.user_id == example_user_id].set_index("item_id")["rating"]
+    neighbor_rows = []
+    for neighbor in positive_neighbors:
+        neighbor_id = int(surprise_trainset.to_raw_uid(neighbor))
+        neighbor_ratings = train.loc[train.user_id == neighbor_id].set_index("item_id")["rating"]
+        common = reference_ratings.index.intersection(neighbor_ratings.index)
+        liked_together = [
+            title_by_id[item_id] for item_id in common
+            if reference_ratings[item_id] >= 4 and neighbor_ratings[item_id] >= 4
+        ]
+        neighbor_rows.append({
+            "neighbor_user_id": neighbor_id,
+            "shrunk_similarity": surprise_u2u.sim[inner_user, neighbor],
+            "shared_movies": len(common),
+            "both_liked": "; ".join(liked_together[:3]) or "—",
+        })
+    display(pd.DataFrame(neighbor_rows).round({"shrunk_similarity": 3}))
+    """,
+)
+
+add(
+    "markdown",
+    r"""
+    ### EDA после оценки: где соседям не хватает данных?
+
+    Разобьём скрытые оценки по числу **обучающих** оценок соответствующего фильма. Для редких фильмов соседей обычно меньше; это может ухудшать качество прогноза. Используем эту таблицу как диагностику на test, а не как набор для подбора `k` и `shrinkage`: подбирать гиперпараметры нужно на отдельной validation-выборке.
+    """,
+)
+
+add(
+    "code",
+    r"""
+    train_movie_count = train.groupby("item_id").size()
+    popularity = test["item_id"].map(train_movie_count).to_numpy()
+    popularity_bucket = pd.cut(
+        popularity,
+        bins=[0, 5, 20, 100, np.inf],
+        labels=["1–5", "6–20", "21–100", "101+"],
+    )
+    diagnostics = pd.DataFrame({
+        "popularity": popularity_bucket,
+        "baseline_MAE": np.abs(predictions["User-mean baseline"] - truth),
+        "item_MAE": np.abs(predictions["Item-to-item"] - truth),
+        "user_MAE": np.abs(predictions["User-to-user"] - truth),
+        "Surprise_MAE": np.abs(library_estimates - truth),
+        "item_coverage": support["Item-to-item"] > 0,
+        "user_coverage": support["User-to-user"] > 0,
+    })
+    by_popularity = diagnostics.groupby("popularity", observed=True).agg(
+        n=("baseline_MAE", "size"),
+        baseline_MAE=("baseline_MAE", "mean"),
+        item_MAE=("item_MAE", "mean"),
+        user_MAE=("user_MAE", "mean"),
+        Surprise_MAE=("Surprise_MAE", "mean"),
+        item_coverage=("item_coverage", "mean"),
+        user_coverage=("user_coverage", "mean"),
+    )
+    display(by_popularity.round(3))
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.5), layout="constrained")
+    by_popularity[["baseline_MAE", "item_MAE", "user_MAE", "Surprise_MAE"]].rename(columns={
+        "baseline_MAE": "User mean",
+        "item_MAE": "Item CF",
+        "user_MAE": "User CF",
+        "Surprise_MAE": "Surprise U2U",
+    }).plot.bar(ax=axes[0])
+    axes[0].set(title="MAE by movie popularity", xlabel="Train ratings per movie", ylabel="MAE")
+    by_popularity[["item_coverage", "user_coverage"]].rename(columns={
+        "item_coverage": "Item CF",
+        "user_coverage": "User CF",
+    }).plot.line(ax=axes[1], marker="o")
+    axes[1].set(title="Positive-neighbor coverage", xlabel="Train ratings per movie", ylabel="Fraction", ylim=(0, 1.05))
+    axes[1].grid(alpha=0.2)
+    plt.show()
+    rare = by_popularity.loc["1–5"]
+    print(
+        f"Rare movies (1–5 train ratings): item-CF coverage {rare['item_coverage']:.1%}; "
+        f"MAE {rare['item_MAE']:.3f} versus user-mean baseline {rare['baseline_MAE']:.3f}."
+    )
+    """,
+)
+
+add(
+    "markdown",
+    r"""
     ## 5. Inspect recommendations
 
     The functions below rank items absent from the **training** history. Because we held out ratings, a hidden test item may appear in this list; this is expected for offline evaluation. A raw prediction of 5.0 based on one neighbor is fragile. We therefore require at least three positive neighbors and pull the ranking score toward the user's mean when support is low. This affects the displayed top-N ranking, not the RMSE/MAE calculation above.
@@ -441,10 +655,54 @@ add(
 add(
     "markdown",
     r"""
+    Для полноты сделаем top-10 тем же библиотечным user-to-user методом. Применяем такой же порог по числу соседей и то же осторожное ранжирование, что в собственной функции выше. Библиотека возвращает `actual_k` — реальное число положительных соседей, участвовавших в оценке.
+    """,
+)
+
+add(
+    "code",
+    r"""
+    def recommend_surprise_user(user_id, n=10, min_neighbors=3, confidence=5):
+        user_idx = int(np.searchsorted(user_ids, user_id))
+        if user_idx >= len(user_ids) or user_ids[user_idx] != user_id:
+            raise ValueError(f"Unknown user ID: {user_id}")
+        rated_items = set(train_ratings.getrow(user_idx).indices)
+        candidates = []
+        for item_idx, item_id in enumerate(item_ids):
+            if item_idx in rated_items or item_idx not in known_items:
+                continue
+            prediction = surprise_u2u.predict(str(user_id), str(item_id))
+            neighbors = prediction.details.get("actual_k", 0)
+            if neighbors >= min_neighbors:
+                ranking_score = user_mean[user_idx] + (
+                    (prediction.est - user_mean[user_idx]) * neighbors / (neighbors + confidence)
+                )
+                candidates.append((item_id, prediction.est, neighbors, ranking_score))
+        result = pd.DataFrame(
+            candidates,
+            columns=["item_id", "estimated_rating", "neighbors", "ranking_score"],
+        )
+        result = result.sort_values(["ranking_score", "neighbors"], ascending=False).head(n)
+        return result.merge(movies, on="item_id", how="left")
+
+
+    print("Surprise user-based recommendations for user", EXAMPLE_USER_ID)
+    display(recommend_surprise_user(EXAMPLE_USER_ID))
+    assert not seen_by_example_user.intersection(
+        recommend_surprise_user(EXAMPLE_USER_ID)["item_id"]
+    )
+    """,
+)
+
+add(
+    "markdown",
+    r"""
     ## 6. What to explore next
 
     - **Neighborhood size and shrinkage:** try `K_NEIGHBORS` of 10 or 80, or `shrinkage` of 0 or 50 in `cosine_with_overlap`. Compare both error and neighbor coverage on the same held-out set. Tune on validation data; keep a separate final test set if you want an unbiased number.
-    - **Popularity bias:** inspect whether the recommended movies are much more popular than a typical catalog item. Similarity based on co-ratings often favors popular objects.
+    - **Popularity and coverage:** compare top-N popularity for item CF, user CF and Surprise across many users. Our one-user example may differ from the aggregate. Also ask what fraction of catalog items each method can recommend.
+    - **Who benefits:** group users by training-history length and compare their errors. Sparse histories often produce less reliable neighbors.
+    - **Similarity definitions:** compare the current centered cosine with Surprise Pearson and different overlap thresholds on a validation split.
     - **Cold start:** neither neighborhood model can infer preferences for a brand-new user or movie without interactions. A content-based or hybrid model can help.
     - **Ranking evaluation:** a rating RMSE win need not mean better top-10 recommendations. Define relevant held-out items, fix the same candidate pool for every model, and then calculate Recall@K or NDCG@K.
     """,
@@ -455,8 +713,12 @@ add(
     r"""
     item_popularity = train.groupby("item_id").size().rename("train_ratings")
     print(f"Median movie popularity in training: {item_popularity.median():.0f} ratings")
-    for method in ("item", "user"):
-        recs = recommend(EXAMPLE_USER_ID, method, n=10)
+    for method in ("item", "user", "Surprise user"):
+        recs = (
+            recommend_surprise_user(EXAMPLE_USER_ID, n=10)
+            if method == "Surprise user"
+            else recommend(EXAMPLE_USER_ID, method, n=10)
+        )
         recommended_popularity = recs["item_id"].map(item_popularity).fillna(0)
         print(
             f"Median popularity among 10 {method}-CF recommendations: "
