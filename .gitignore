@@ -10,6 +10,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 data/
+ml-1m/
+ml-1m.zip
 datasets/
 prepared/
 experiments/
