@@ -16,3 +16,7 @@ datasets/
 prepared/
 experiments/
 catboost_info/
+
+# Seminar data are distributed via Google Drive.
+/seminars/07_regression_ranking_content/*.npz
+/seminars/07_regression_ranking_content/assets/*.npz

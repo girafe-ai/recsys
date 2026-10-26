@@ -1,0 +1,58 @@
+{
+  "source": "https://huggingface.co/datasets/t-tech/T-ECD",
+  "revision": "79bcf78cd4699267f561ad3fd51fe7b52af53083",
+  "domain": "retail",
+  "edition": "small",
+  "license": "CC-BY-NC-SA-4.0",
+  "seed": 42,
+  "days": [
+    1260,
+    1287
+  ],
+  "users": 14543,
+  "items": 10000,
+  "embedding_dimensions": 300,
+  "embedding_provenance": "Pretrained vectors supplied by dataset authors; training inputs and cutoff unspecified.",
+  "selection": "Top 10,000 items with >=5 training users; users with >=8 distinct training items; seeded uniform sample up to 20,000 users.",
+  "train": [
+    1260,
+    1277.5
+  ],
+  "validation": [
+    1278,
+    1282.5
+  ],
+  "test": [
+    1283,
+    1288
+  ],
+  "gap_hours": 12,
+  "train_events": [
+    "added_to_cart",
+    "order"
+  ],
+  "target_event": "order",
+  "repeat_purchases": "Allowed; previously bought items remain in the ranking catalog.",
+  "pairs": {
+    "train": 355586,
+    "valid": 40149,
+    "test": 44461,
+    "refit": 403387
+  },
+  "coverage": {
+    "valid": {
+      "target_pairs_before_catalog_filter": 59369,
+      "target_pairs_in_catalog": 40149,
+      "catalog_coverage": 0.6762620222675133,
+      "users_with_targets": 3661
+    },
+    "test": {
+      "target_pairs_before_catalog_filter": 66314,
+      "target_pairs_in_catalog": 44461,
+      "catalog_coverage": 0.6704617426184516,
+      "users_with_targets": 3682
+    }
+  },
+  "sha256": "8104492381b72a972ab0a1b3f68b6cdac9a1dc40f6350c84bdd61b1ba6871dfe",
+  "bytes": 13030279
+}
