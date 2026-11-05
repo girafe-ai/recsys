@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-29",
+  "seed": 42,
+  "train_rows": 600000,
+  "validation_rows": 150000,
+  "test_rows": 200000,
+  "gpu": "Tesla T4",
+  "torch": "2.11.0+cu130",
+  "polars": "1.35.2",
+  "catboost": "1.2.10",
+  "metric_decimal_places": 4,
+  "source": "Saved output tables from the complete seminar GPU run",
+  "results": [
+    {
+      "model": "MLP log, 1 hash",
+      "validation": {
+        "ROC_AUC": 0.7754,
+        "AP": 0.5589,
+        "LogLoss": 0.4699
+      },
+      "test": {
+        "ROC_AUC": 0.776,
+        "AP": 0.5604,
+        "LogLoss": 0.4729
+      },
+      "train_seconds": 4.6276,
+      "parameters": 2240257,
+      "selected_step": 1
+    },
+    {
+      "model": "MLP log, 2 hashes",
+      "validation": {
+        "ROC_AUC": 0.7747,
+        "AP": 0.5578,
+        "LogLoss": 0.4704
+      },
+      "test": {
+        "ROC_AUC": 0.7752,
+        "AP": 0.5588,
+        "LogLoss": 0.4736
+      },
+      "train_seconds": 5.9646,
+      "parameters": 2346753,
+      "selected_step": 1
+    },
+    {
+      "model": "MLP PLE, 2 hashes",
+      "validation": {
+        "ROC_AUC": 0.7754,
+        "AP": 0.5578,
+        "LogLoss": 0.4701
+      },
+      "test": {
+        "ROC_AUC": 0.7763,
+        "AP": 0.5598,
+        "LogLoss": 0.4728
+      },
+      "train_seconds": 4.3474,
+      "parameters": 2396673,
+      "selected_step": 1
+    },
+    {
+      "model": "DCN PLE, 2 hashes",
+      "validation": {
+        "ROC_AUC": 0.7787,
+        "AP": 0.5641,
+        "LogLoss": 0.4674
+      },
+      "test": {
+        "ROC_AUC": 0.7794,
+        "AP": 0.5655,
+        "LogLoss": 0.4705
+      },
+      "train_seconds": 19.1548,
+      "parameters": 4561953,
+      "selected_step": 1
+    },
+    {
+      "model": "CatBoost GPU",
+      "validation": {
+        "ROC_AUC": 0.781,
+        "AP": 0.5703,
+        "LogLoss": 0.4652
+      },
+      "test": {
+        "ROC_AUC": 0.7814,
+        "AP": 0.5709,
+        "LogLoss": 0.4686
+      },
+      "train_seconds": 156.9433,
+      "parameters": null,
+      "selected_step": 998
+    }
+  ]
+}

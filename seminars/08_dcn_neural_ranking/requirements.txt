@@ -1,0 +1,9 @@
+torch>=2.5,<3
+numpy>=1.26,<3
+pandas>=2,<3
+polars==1.35.2
+catboost==1.2.10
+scikit-learn>=1.5,<2
+matplotlib>=3.8,<4
+pyarrow>=14
+tqdm>=4.66,<5

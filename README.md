@@ -17,5 +17,7 @@
 | 6 | Лекция | PageRank и нейросетевые рекомендации: two-tower, attention, BERT4Rec | [Слайды](lectures/06_tower_nns/slides.pdf) | — |
 | 6 | Семинар | Масштабирование ALS и объединение сигналов | [Ноутбук](seminars/06_als_scaling/seminar.ipynb), [Drive / Colab](https://drive.google.com/file/d/1OxzTe8CkeB0LUbZPSnEyu7ODVe9J-Fob/view?usp=drivesdk) | — |
 | 7 | Семинар | Регрессия, ранжирование и Content ALS; PageRank и Personalized PageRank | [Ноутбук](seminars/07_regression_ranking_content/seminar.ipynb), [Drive / Colab](https://drive.google.com/file/d/18fS_i1_UYqpcglTLWGaLPsKB3AWLVYQg/view?usp=drivesdk), [Данные](seminars/07_regression_ranking_content/DATA.md) | — |
+| 8 | Лекция | Нейроранжирование: кодирование признаков и DCN v2 | [Слайды](lectures/08_neural_ranking/slides.pdf) | — |
+| 8 | Семинар | Нейроранжирование: DCN v2 и CatBoost на Criteo | [Ноутбук](seminars/08_dcn_neural_ranking/seminar.ipynb), [Drive / Colab](https://drive.google.com/file/d/1plkx161i1X0KdeuWV4F_lY5SkPGerUy_/view?usp=drivesdk), [Конспект](seminars/08_dcn_neural_ranking/dcn_notes.pdf) | — |
 
 Материалы занятий хранятся в репозитории.
