@@ -20,5 +20,6 @@
 | 8 | Лекция | Нейроранжирование: кодирование признаков и DCN v2 | [Слайды](lectures/08_neural_ranking/slides.pdf) | — |
 | 8 | Семинар | Нейроранжирование: DCN v2 и CatBoost на Criteo | [Ноутбук](seminars/08_dcn_neural_ranking/seminar.ipynb), [Drive / Colab](https://drive.google.com/file/d/1plkx161i1X0KdeuWV4F_lY5SkPGerUy_/view?usp=drivesdk), [Конспект](seminars/08_dcn_neural_ranking/dcn_notes.pdf) | — |
 | 9 | Лекция | Высоконагруженные рекомендательные системы | [Слайды](lectures/09_highload/slides.pdf) | — |
+| 9 | Семинар | Индексы, квантизация и шардирование | [Ноутбук](seminars/09_highload_recsys/seminar.ipynb), [Qdrant](seminars/09_highload_recsys/qdrant/how-to.md) | — |
 
 Материалы занятий хранятся в репозитории.

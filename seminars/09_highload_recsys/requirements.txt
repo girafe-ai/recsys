@@ -1,0 +1,10 @@
+faiss-cpu==1.13.2
+numpy>=1.26.4,<3
+h5py>=3.12.1,<4
+pandas>=2.2.3,<4
+matplotlib>=3.9.2,<4
+gdown==5.2.0
+threadpoolctl==3.5.0
+nbformat==5.10.4
+nbclient==0.10.2
+ipykernel>=6.29.5,<8

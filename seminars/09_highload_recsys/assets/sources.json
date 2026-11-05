@@ -1,0 +1,12 @@
+{
+  "assets": {
+    "hnsw_original.png": "https://raw.githubusercontent.com/girafe-ai/mlops/26s-mipt/knn-seminar/images/hnsw.png",
+    "quantization_original.png": "https://raw.githubusercontent.com/girafe-ai/mlops/26s-mipt/knn-seminar/images/quant.png",
+    "scalar_uniform.jpg": "https://habrastorage.org/r/w1560/webt/c9/v2/ud/c9v2udie9rfivszhxikh2lhewps.jpeg",
+    "scalar_clipping.jpg": "https://habrastorage.org/r/w1560/webt/_t/te/ti/_ttetipdrky0aenhcyzarzzfhes.jpeg",
+    "scalar_quantiles.jpg": "https://habrastorage.org/r/w1560/webt/sf/qq/r8/sfqqr8rcsjdvpzjvnyniilhrgie.jpeg"
+  },
+  "habr_article": "https://habr.com/ru/companies/yandex/articles/539960/",
+  "habr_author": "Евгений Харитонов (mors741), Яндекс",
+  "original_seminar": "https://github.com/girafe-ai/mlops/tree/26s-mipt/knn-seminar"
+}
