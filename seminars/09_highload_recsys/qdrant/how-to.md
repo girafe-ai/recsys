@@ -60,6 +60,53 @@ python operation.py recreate=true
 python operation.py recreate=true num_neighbours=100 hnsw_ef=1600
 ```
 
+## Квантизация
+
+По умолчанию `quantization.type=none`. Включить SQ8:
+
+```bash
+python operation.py recreate=true quantization.type=scalar
+```
+
+Настройки в блоке `quantization` файла `conf.yaml`:
+
+| Параметр | Значения и смысл |
+|---|---|
+| `type` | `none`, `scalar`, `product`, `binary` |
+| `quantile` | Для scalar: границы диапазона квантизации; `0.5–1.0`, `1.0` — весь диапазон. Более узкий диапазон уменьшает шаг, но сильнее обрезает хвосты |
+| `compression` | Для product: `x4`, `x8`, `x16`, `x32`, `x64` — степень сжатия векторных кодов относительно float32. Codebook-и добавляют отдельные расходы |
+| `always_ram` | Держать квантованные векторы в RAM, даже когда исходные векторы хранятся на диске |
+| `rescore` | Пересчитывать оценки кандидатов по исходным float32-векторам |
+| `oversampling` | Множитель числа кандидатов перед пересчётом: при `k=100` и значении `4` берём 400 кандидатов. Имеет смысл при `rescore=true` |
+
+Product quantization:
+
+```bash
+python operation.py recreate=true quantization.type=product quantization.compression=x8
+```
+
+Binary quantization:
+
+```bash
+python operation.py recreate=true quantization.type=binary quantization.oversampling=4
+```
+
+Scalar, другой диапазон и поиск без пересчёта:
+
+```bash
+python operation.py recreate=true quantization.type=scalar quantization.quantile=0.95 quantization.rescore=false
+```
+
+При включённой квантизации в таблице появляется четвёртая строка с её типом.
+Строка `Qdrant HNSW` использует исходные векторы (`ignore=true`), а новая строка —
+квантованные, с выбранными `rescore` и `oversampling`. Оба поиска идут по одной коллекции.
+`Qdrant exact` всегда выполняется по исходным векторам, независимо от настроек квантизации.
+
+Scalar заменяет координаты на int8, product — части вектора на индексы центроидов,
+binary — координаты на биты. Чем сильнее сжатие, тем важнее проверять Recall:
+в частности, binary на 128-мерных эмбеддингах Last.fm может заметно терять качество.
+Пересчёт улучшает порядок кандидатов, но не возвращает соседей, которых среди кандидатов нет.
+
 Проверки без Docker:
 
 ```bash

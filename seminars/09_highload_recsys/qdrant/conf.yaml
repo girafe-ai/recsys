@@ -14,6 +14,14 @@ hnsw_m: 50
 ef_construct: 1000
 hnsw_ef: 1600
 
+quantization:
+  type: none
+  quantile: 0.99
+  compression: x8
+  always_ram: true
+  rescore: true
+  oversampling: 2.0
+
 faiss_threads: 1
 warmup: 16
 repeats: 3

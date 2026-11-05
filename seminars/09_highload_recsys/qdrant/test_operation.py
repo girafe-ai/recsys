@@ -16,6 +16,81 @@ import operation
 
 
 class OperationTests(unittest.TestCase):
+    def test_quantization_settings_can_be_overridden_from_cli(self):
+        try:
+            config = operation.load_config([
+                "quantization.type=scalar", "quantization.quantile=0.95",
+                "quantization.rescore=false", "quantization.oversampling=4",
+            ])
+        except ConfigKeyError as error:
+            self.fail(f"Quantization settings are missing: {error}")
+        self.assertEqual(config.quantization.type, "scalar")
+        self.assertEqual(config.quantization.quantile, 0.95)
+        self.assertIs(config.quantization.rescore, False)
+        self.assertEqual(config.quantization.oversampling, 4)
+
+    def test_quantization_config_supports_each_mode(self):
+        self.assertTrue(hasattr(operation, "build_quantization_config"))
+        for kind in ["none", "scalar", "product", "binary"]:
+            with self.subTest(kind=kind):
+                config = operation.load_config([f"quantization.type={kind}"])
+                result = operation.build_quantization_config(config.quantization)
+                if kind == "none":
+                    self.assertIsNone(result)
+                else:
+                    payload = result.model_dump(exclude_none=True)[kind]
+                    self.assertIs(payload["always_ram"], True)
+                    if kind == "scalar":
+                        self.assertEqual(payload["type"], "int8")
+                        self.assertEqual(payload["quantile"], 0.99)
+                    elif kind == "product":
+                        self.assertEqual(payload["compression"], "x8")
+
+    def test_invalid_quantization_settings_are_rejected(self):
+        self.assertTrue(hasattr(operation, "build_quantization_config"))
+        for overrides in [
+            ["quantization.type=unknown"],
+            ["quantization.type=scalar", "quantization.quantile=0.1"],
+            ["quantization.type=product", "quantization.compression=x3"],
+        ]:
+            with self.subTest(overrides=overrides):
+                config = operation.load_config(overrides)
+                with self.assertRaises(ValueError):
+                    operation.build_quantization_config(config.quantization)
+
+    def test_exact_search_disables_quantization(self):
+        client = Mock()
+        client.query_points.return_value.points = []
+        operation.search_qdrant(client, np.ones(128), "test", exact=True)
+        params = client.query_points.call_args.kwargs["search_params"]
+        self.assertIsNotNone(params.quantization)
+        self.assertIs(params.quantization.ignore, True)
+
+    def test_search_passes_rescore_and_oversampling(self):
+        client = Mock()
+        client.query_points.return_value.points = []
+        options = models.QuantizationSearchParams(ignore=False, rescore=False, oversampling=4)
+        try:
+            operation.search_qdrant(client, np.ones(128), "test", quantization=options)
+        except TypeError as error:
+            self.fail(f"Quantization search parameters are missing: {error}")
+        params = client.query_points.call_args.kwargs["search_params"]
+        self.assertIs(params.quantization.rescore, False)
+        self.assertEqual(params.quantization.oversampling, 4)
+
+    def test_collection_receives_quantization_config(self):
+        client = Mock()
+        client.collection_exists.return_value = False
+        quantization = models.ScalarQuantization(
+            scalar=models.ScalarQuantizationConfig(type=models.ScalarType.INT8)
+        )
+        with patch.object(operation, "QdrantClient", return_value=client):
+            try:
+                operation.setup_qdrant("test", 6333, 128, quantization=quantization)
+            except TypeError as error:
+                self.fail(f"Collection quantization is missing: {error}")
+        self.assertEqual(client.create_collection.call_args.kwargs["quantization_config"], quantization)
+
     def test_cli_help_runs(self):
         result = subprocess.run(
             [sys.executable, operation.__file__, "--help"], capture_output=True, text=True
@@ -89,6 +164,59 @@ class OperationTests(unittest.TestCase):
         self.assertEqual([hit[1] for hit in result], ids.tolist())
         np.testing.assert_allclose([hit[0] for hit in result], scores, atol=1e-6)
         self.assertEqual(ids.tolist(), [1, 2, 0])
+
+    @unittest.skipUnless(os.environ.get("QDRANT_TEST_URL"), "requires Qdrant server")
+    def test_quantized_search_and_exact_reference_on_server(self):
+        rng = np.random.default_rng(17)
+        items = rng.normal(size=(4096, 128)).astype("float32")
+        queries = rng.normal(size=(4, 128)).astype("float32")
+        index = operation.build_faiss_index(items)
+        normalized_items = items / np.linalg.norm(items, axis=1, keepdims=True)
+        client = QdrantClient(url=os.environ["QDRANT_TEST_URL"], timeout=60)
+        try:
+            for kind in ["scalar", "product", "binary"]:
+                with self.subTest(kind=kind):
+                    name = "test_quantization_" + uuid.uuid4().hex
+                    config = operation.load_config([f"quantization.type={kind}"])
+                    client.create_collection(
+                        name,
+                        vectors_config=models.VectorParams(size=128, distance=models.Distance.COSINE),
+                        hnsw_config=models.HnswConfigDiff(m=16, ef_construct=100, full_scan_threshold=10),
+                        optimizers_config=models.OptimizersConfigDiff(
+                            indexing_threshold=0, default_segment_number=2
+                        ),
+                        quantization_config=operation.build_quantization_config(config.quantization),
+                    )
+                    try:
+                        operation.upload_to_qdrant(client, name, items, 1024)
+                        operation.wait_for_index(client, name, 120)
+                        info = client.get_collection(name)
+                        self.assertIn(kind, info.config.quantization_config.model_dump())
+                        for query in queries:
+                            _, expected = operation.search_faiss(index, query, 10)
+                            exact = operation.search_qdrant(
+                                client, query, name, 10, exact=True,
+                                quantization=models.QuantizationSearchParams(ignore=False, rescore=False),
+                            )
+                            self.assertEqual([hit[1] for hit in exact], expected.tolist())
+                            for rescore in [False, True]:
+                                hits = operation.search_qdrant(
+                                    client, query, name, 10, hnsw_ef=256,
+                                    quantization=models.QuantizationSearchParams(
+                                        ignore=False, rescore=rescore, oversampling=2
+                                    ),
+                                )
+                                ids = [hit[1] for hit in hits]
+                                self.assertEqual(len(set(ids)), 10)
+                                if rescore:
+                                    expected_scores = normalized_items[ids] @ (query / np.linalg.norm(query))
+                                    np.testing.assert_allclose(
+                                        [hit[0] for hit in hits], expected_scores, atol=1e-5
+                                    )
+                    finally:
+                        client.delete_collection(name)
+        finally:
+            client.close()
 
     @unittest.skipUnless(os.environ.get("QDRANT_TEST_URL"), "requires Qdrant server")
     def test_tiny_vectors_keep_cosine_scores_on_server(self):

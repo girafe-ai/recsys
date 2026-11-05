@@ -50,6 +50,26 @@ def build_faiss_index(embeddings: np.ndarray, index_path: str | None = None):
     return index
 
 
+def build_quantization_config(conf: DictConfig):
+    if conf.type == "none":
+        return None
+    if conf.type == "scalar":
+        if conf.quantile is not None and not 0.5 <= conf.quantile <= 1.0:
+            raise ValueError("quantization.quantile должен быть в диапазоне [0.5, 1.0]")
+        return models.ScalarQuantization(scalar=models.ScalarQuantizationConfig(
+            type=models.ScalarType.INT8, quantile=conf.quantile, always_ram=conf.always_ram
+        ))
+    if conf.type == "product":
+        return models.ProductQuantization(product=models.ProductQuantizationConfig(
+            compression=models.CompressionRatio(conf.compression), always_ram=conf.always_ram
+        ))
+    if conf.type == "binary":
+        return models.BinaryQuantization(binary=models.BinaryQuantizationConfig(
+            always_ram=conf.always_ram
+        ))
+    raise ValueError("quantization.type: выберите none, scalar, product или binary")
+
+
 def setup_qdrant(
     collection_name: str,
     port: int,
@@ -57,6 +77,7 @@ def setup_qdrant(
     recreate: bool = False,
     m: int = 50,
     ef_construct: int = 1000,
+    quantization=None,
 ):
     client = QdrantClient("127.0.0.1", port=port, timeout=60.0)
     try:
@@ -76,6 +97,7 @@ def setup_qdrant(
                 m=m, ef_construct=ef_construct, full_scan_threshold=10
             ),
             optimizers_config=models.OptimizersConfigDiff(indexing_threshold=0),
+            quantization_config=quantization,
         )
     except Exception:
         client.close()
@@ -138,14 +160,17 @@ def search_qdrant(
     k: int = 10,
     hnsw_ef: int = 1600,
     exact: bool = False,
+    quantization: models.QuantizationSearchParams | None = None,
 ):
     query = np.array([query_embedding], dtype="float32")
     faiss.normalize_L2(query)
+    if exact or quantization is None:
+        quantization = models.QuantizationSearchParams(ignore=True)
     result = client.query_points(
         collection_name=collection_name,
         query=query[0].tolist(),
         limit=k,
-        search_params=models.SearchParams(hnsw_ef=hnsw_ef, exact=exact),
+        search_params=models.SearchParams(hnsw_ef=hnsw_ef, exact=exact, quantization=quantization),
         with_payload=False,
         with_vectors=False,
     )
@@ -197,6 +222,13 @@ def main(conf: DictConfig):
         raise ValueError("num_queries, repeats и num_neighbours должны быть положительными")
     if conf.hnsw_ef < conf.num_neighbours:
         raise ValueError("hnsw_ef должен быть не меньше num_neighbours")
+    quantization = build_quantization_config(conf.quantization)
+    if conf.quantization.oversampling < 1:
+        raise ValueError("quantization.oversampling должен быть не меньше 1")
+    quantization_search = models.QuantizationSearchParams(
+        ignore=False, rescore=conf.quantization.rescore,
+        oversampling=conf.quantization.oversampling,
+    )
     directory = Path(__file__).resolve().parent
     data_path = directory / conf.embeddings_path
     download_data(data_path)
@@ -217,6 +249,7 @@ def main(conf: DictConfig):
     client = setup_qdrant(
         conf.collection_name, conf.port, items.shape[1], conf.recreate,
         conf.hnsw_m, conf.ef_construct,
+        quantization=quantization,
     )
     try:
         print(f"Загрузка {len(items)} объектов в Qdrant…", flush=True)
@@ -232,6 +265,13 @@ def main(conf: DictConfig):
                 client, q, conf.collection_name, conf.num_neighbours, hnsw_ef=conf.hnsw_ef
             )],
         }
+        if quantization is not None:
+            searches[f"Qdrant HNSW + {conf.quantization.type}"] = lambda q: [
+                hit[1] for hit in search_qdrant(
+                    client, q, conf.collection_name, conf.num_neighbours,
+                    hnsw_ef=conf.hnsw_ef, quantization=quantization_search,
+                )
+            ]
         results = {}
         for name, search in searches.items():
             print(f"Замер {name}…", flush=True)
