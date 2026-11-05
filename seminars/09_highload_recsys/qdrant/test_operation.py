@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
@@ -8,11 +10,27 @@ from unittest.mock import Mock, patch
 import h5py
 import numpy as np
 from qdrant_client import QdrantClient, models
+from omegaconf.errors import ConfigKeyError
 
 import operation
 
 
 class OperationTests(unittest.TestCase):
+    def test_cli_help_runs(self):
+        result = subprocess.run(
+            [sys.executable, operation.__file__, "--help"], capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("recreate", result.stdout)
+
+    def test_config_overrides_preserve_types_and_reject_unknown_keys(self):
+        self.assertTrue(hasattr(operation, "load_config"))
+        config = operation.load_config(["num_queries=12", "recreate=true"])
+        self.assertEqual(config.num_queries, 12)
+        self.assertIs(config.recreate, True)
+        with self.assertRaises(ConfigKeyError):
+            operation.load_config(["unknown_option=1"])
+
     def test_reads_items_as_catalog_and_users_as_queries(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "factors.h5"

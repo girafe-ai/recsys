@@ -1,3 +1,4 @@
+import argparse
 import json
 import logging
 import time
@@ -6,7 +7,6 @@ from pathlib import Path
 import faiss
 import gdown
 import h5py
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from qdrant_client import QdrantClient, models
@@ -185,7 +185,12 @@ def benchmark(search, queries, truth, repeats, warmup):
     }
 
 
-@hydra.main(version_base=None, config_path=".", config_name="conf")
+def load_config(overrides: list[str]):
+    config = OmegaConf.load(Path(__file__).with_name("conf.yaml"))
+    OmegaConf.set_struct(config, True)
+    return OmegaConf.merge(config, OmegaConf.from_dotlist(overrides))
+
+
 def main(conf: DictConfig):
     logging.getLogger("httpx").setLevel(logging.WARNING)
     if conf.num_queries < 1 or conf.repeats < 1 or conf.num_neighbours < 1:
@@ -253,4 +258,9 @@ def main(conf: DictConfig):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Поиск рекомендаций: FAISS и Qdrant")
+    parser.add_argument(
+        "overrides", nargs="*", metavar="key=value",
+        help="Параметры conf.yaml, например recreate=true",
+    )
+    main(load_config(parser.parse_args().overrides))

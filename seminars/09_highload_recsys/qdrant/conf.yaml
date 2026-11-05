@@ -1,7 +1,3 @@
-defaults:
-  - override hydra/job_logging: disabled
-  - _self_
-
 embeddings_path: ../data/lastfm_factors.h5
 num_embeddings: null
 num_queries: 256
@@ -21,10 +17,3 @@ hnsw_ef: 1600
 faiss_threads: 1
 warmup: 16
 repeats: 3
-
-hydra:
-  run:
-    dir: .
-  output_subdir: null
-  job:
-    chdir: false
