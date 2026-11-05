@@ -77,3 +77,18 @@ QDRANT_TEST_URL=http://127.0.0.1:6333 python -m unittest -v test_operation.py
 ```bash
 docker compose down
 ```
+
+Qdrant хранит базу в Docker volume `qdrant_storage`. Он сохраняется после
+`docker compose down` и не зависит от прав доступа к папкам проекта.
+
+Если контейнер был запущен со старым `./storage:/qdrant/storage` и выдаёт
+`Operation not permitted` при создании `storage/.deleted`, обновите ветку и выполните:
+
+```bash
+docker compose down
+docker compose up -d
+python operation.py recreate=true
+```
+
+Это создаст базу в новом volume и заново загрузит в неё эмбеддинги из HDF5.
+Старая папка `storage`, если она есть, останется на месте.
