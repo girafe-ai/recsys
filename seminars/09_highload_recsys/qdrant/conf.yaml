@@ -15,12 +15,36 @@ ef_construct: 1000
 hnsw_ef: 1600
 
 quantization:
-  type: none
-  quantile: 0.99
-  compression: x8
-  always_ram: true
-  rescore: true
-  oversampling: 2.0
+  type: none           # none — без квантизации; scalar — SQ8; product — PQ; binary — 1 бит на координату
+  quantile: 0.99       # Только scalar: [0.5, 1.0]; 1.0 или null — весь диапазон без клиппинга
+  compression: x8     # Только product: x4, x8, x16, x32, x64 — степень сжатия кодов относительно float32
+  always_ram: true    # Хранить квантованные векторы в RAM
+  rescore: true       # Пересчитывать оценки кандидатов по исходным векторам
+  oversampling: 2.0   # Кандидатов перед пересчётом: k * oversampling; >= 1, используется при rescore=true
+
+# Примеры: замените блок quantization одним из вариантов ниже.
+# SQ8: int8, клиппинг и пересчёт по исходным векторам.
+# quantization:
+#   type: scalar
+#   quantile: 0.99
+#   always_ram: true
+#   rescore: true
+#   oversampling: 2.0
+#
+# PQ: сжатие кодов в 8 раз, пересчёт по исходным векторам.
+# quantization:
+#   type: product
+#   compression: x8
+#   always_ram: true
+#   rescore: true
+#   oversampling: 4.0
+#
+# Binary: 1 бит на координату, больше кандидатов для пересчёта.
+# quantization:
+#   type: binary
+#   always_ram: true
+#   rescore: true
+#   oversampling: 4.0
 
 faiss_threads: 1
 warmup: 16
